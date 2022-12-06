@@ -1,5 +1,6 @@
 import React, { Component } from "react";
 import Neovis from "neovis.js/dist/neovis.js";
+import { Segment, Dimmer, Loader } from "semantic-ui-react";
 
 import { v1 as uuid } from "uuid";
 
@@ -11,9 +12,11 @@ export class NeoVisComponent extends Component {
   constructor(props) {
     super(props);
 
+    console.log("props", props)
+
     this.state = {
       loading: true,
-      query: props.query,
+      query: this.props.query,
       id: getUUID()
     };
   }
@@ -23,6 +26,9 @@ export class NeoVisComponent extends Component {
     const self = this;
     var viz = self.draw();
     viz.render();
+    this.setState({
+      loading: false
+    })
   }
 
   draw = () => {
@@ -31,7 +37,29 @@ export class NeoVisComponent extends Component {
       server_url: "bolt://10.115.1.250:7687",
       server_user: "neo4j",
       server_password: "ace_KG_001",
-      initial_cypher: this.state.query
+      initial_cypher: this.props.query,
+      labels: {
+        "indication": {
+          caption: "name",
+          size: "pagerank",
+          community: "1"
+        },
+        "company": {
+          caption: "name",
+          size: "pagerank",
+          community: "2"
+        },
+        "drug": {
+          caption: "name",
+          size: "pagerank",
+          community: "3"
+        }
+      },
+      //experiment with multiple nodes
+      //render dropdowns
+      relationships: {
+        
+      },
     };
     var viz = new Neovis(config);
     console.log("viz", viz);
@@ -39,22 +67,32 @@ export class NeoVisComponent extends Component {
   }
 
   render() {
-    console.log("render");
+    console.log("render", this.state );
     const { loading, id } = this.state;
+    const viz={
+      width: '900px',
+      height: '370px'
+    }
     return (
       <div>
-        <div id={id}></div>
+        <div id={id} style={viz}></div>
         {!loading && (
           <div
             style={{
               textAlign: "center",
               marginTop: 60,
-              // width: "1000px",
-              // height: "600px",
+              marginBottom: 100
             }}
           >
           </div>
         )}
+        {/* {this.state.loading && (
+          <Segment style={{ marginTop: '40px', height: '400px', marginRight: "50px"}}>
+            <Dimmer active inverted>
+              <Loader inverted content='Loading' />
+            </Dimmer>
+          </Segment>
+        )} */}
       </div>
     );
   }
