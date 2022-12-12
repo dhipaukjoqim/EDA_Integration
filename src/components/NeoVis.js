@@ -71,7 +71,8 @@ export class NeoVisComponent extends Component {
     const { loading, id } = this.state;
     const viz={
       width: '900px',
-      height: '370px'
+      height: '370px',
+      margin: '100px'
     }
     return (
       <div>

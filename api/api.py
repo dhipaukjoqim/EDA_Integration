@@ -17,6 +17,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 import asyncio
+import ast
 
 # from rest_framework.response import Response
 
@@ -58,14 +59,82 @@ app = Flask(__name__)
 def docs():
   connection = connect_db()
   cur = connection.cursor()
-  doc_query = '''SELECT *
-    FROM `disease_adjacency_rank_storage`
-    '''
+
+  rowCount = request.json['rowCount']
+  convertedRowCount = int (rowCount)
+  #print(convertedRowCount, flush=True)
+
+  doc_query = '''
+    SELECT * from `disease_adjacency_rank_storage` order by curation_u_id desc limit %s;
+  '''
   
-  cur.execute(doc_query)
+  cur.execute(doc_query, (convertedRowCount))
   docs = cur.fetchall()
+  #print("docs", docs, flush=True)
+
+  subgraph = []
+  allIds = []
+
+  for doc in docs:
+    ids = doc[2]
+    ids = ast.literal_eval(ids)
+    ids =[int(i) for i in ids]
+    allIds.append(ids)
+
+    subquery = '''MATCH (p) where id(p) IN {}
+      with collect(id(p)) as nodes
+      CALL apoc.algo.cover(nodes)
+      YIELD rel
+      RETURN  startNode(rel), rel, endNode(rel),id(startNode(rel)),id(rel),id(endNode(rel));'''.format(ids)
+    subgraph.append(subquery)
+
+
+  print("allIds", allIds, flush=True)    
+  REPLACE_WITH_ALL_UNIQUE_IDS  = list(set([item for sublist in allIds for item in sublist]))
+  
+
+  fullgraph = '''MATCH (p) where id(p) IN  {}
+    with collect(id(p)) as nodes
+    CALL apoc.algo.cover(nodes)
+    YIELD rel
+    RETURN  startNode(rel), rel, endNode(rel),id(startNode(rel)),id(rel),id(endNode(rel));'''.format(REPLACE_WITH_ALL_UNIQUE_IDS)
+
+  print("docs0", type(docs[0]), flush=True)
+
   d = dict()
-  d['removed_documents'] = docs
+  d['documents'] = docs
+  d['subgraphs'] = subgraph
+  d['fullgraph'] = fullgraph
+  
+  connection.commit()
+  connection.close()
+
+  return jsonify(d)
+
+@app.route('/update', methods=["POST"])
+@cross_origin()
+def update_docs():
+  print("Inside update", flush=True)
+  connection = connect_db()
+  cur = connection.cursor()
+
+  docs = request.json['documents']
+  print(docs)
+
+  for doc in docs:
+    print('\n doc', doc, flush=True)
+    doc_query = '''
+      UPDATE disease_adjacency_rank_storage
+      SET rank = %s, adjacency_curation = %s
+      WHERE curation_u_id = %s;
+    '''
+    curationId = doc[0]
+    # convertedCurationId = int(curationId)
+
+    cur.execute(doc_query, (doc[3], doc[4], curationId))
+
+  d = dict()
+  d['message'] = 'updated'
   
   connection.commit()
   connection.close()

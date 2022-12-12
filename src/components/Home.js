@@ -5,6 +5,8 @@ import HeaderContent from './Header';
 import axios from "axios";
 // import Neovis from "neovis.js/dist/neovis.js";
 import { NeoVisComponent } from './NeoVis';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 // const { request } = require('urllib');
 
 export default class Home extends Component {
@@ -14,220 +16,188 @@ export default class Home extends Component {
         loading: false,
         queries: [],
         rankOptions: [],
-        adjacencyOptions: []
+        adjacencyOptions: [],
+        rowCount: 0,
+        documents: [],
+        fullgraph: ''
       };
     }
 
     componentDidMount = async() => {
       const queryString = window.location.search;
-      console.log(queryString);
-
-      const urlParams = new URLSearchParams(queryString);
-      //console.log("urlParams", urlParams)
-
-
-      // let response = await axios
-      //   .post('http://localhost:5000/', this.state);
-      //   console.log("response", response)
-
       const adjacencyOptions = [
         { key: 'adjacent', value: 'ADJACENT', text: 'ADJACENT' },
         { key: 'non-adjacent', value: 'NON-ADJACENT', text: 'NON-ADJACENT' }
       ]
-
-      const rankOptions = [
-        { key: '1', value: '1', text: '1' },
-        { key: '2', value: '2', text: '2' },
-        { key: '3', value: '3', text: '3' },
-      ]
+      
+      let rowCount = queryString.split('=')[1];
+      const rankOptions = this.prepareRankOptions(rowCount);
 
       this.setState({
-        ...this.state,
+        rowCount,
         adjacencyOptions,
-        rankOptions
+        rankOptions,
+      }, async() => {
+        let response = await axios
+        .post('http://localhost:5000/', this.state);
+        console.log("response", response);
+
+        this.setState({
+          documents: response.data.documents,
+          queries: response.data.subgraphs,
+          fullgraph: response.data.fullgraph
+        })
       })
     }
 
-    renderGrid = (q1, q2, q3, q4) => {
+    prepareRankOptions = (rowCount) => {
+      let rankOptionsArray = [];
+      for(let i=0; i<rowCount; i++) {
+        let object = {};
+        object.key = i+1;
+        object.value = i+1;
+        object.text = i+1;
+
+        rankOptionsArray.push(object)
+      }
+
+      return rankOptionsArray;
+    }
+
+    //Column "path" needs to be added in SQL table
+    handleInputChange = (docId) => {
+      let docs = this.state.documents;
+      console.log("docId", docId);
+    }
+
+    handleDropdownChange = docId => (e, data) => {
+      console.log(data.name, data.value, docId);
+      let docs = this.state.documents;
+      for(let i=0; i<docs.length; i++) {
+        if(docs[i][0] == docId) {
+          docs[i][3] = data.value
+        }
+      }
+
+      this.setState({
+        ...this.state,
+        documents: docs
+      });
+    }
+
+    handleAdjacencyDropdownChange = docId => (e, data) => {
+      console.log(data.name, data.value, docId);
+      let docs = this.state.documents;
+      for(let i=0; i<docs.length; i++) {
+        if(docs[i][0] == docId) {
+          docs[i][4] = data.value
+        }
+      }
+
+      this.setState({
+        ...this.state,
+        documents: docs
+      });
+    }
+
+    renderGrid = () => {
+      let queries = this.state.queries;
+      console.log("queries", queries)
       return (
         <div>
-          <Grid columns={3} divided>
+          <Grid columns={this.state.documents.length} divided>
             <Grid.Row>
-              <Grid.Column>
-                <Form.Field inline>
-                {/* <label>Subgraph</label> */}
-                <br />
-                <Modal
-                  trigger={<Button style={{marginLeft: "25%"}}>Show Subgraph</Button>}
-                  header='Subgraph 1'
-                  content={<NeoVisComponent query={q2}/>}
-                  actions={['Close']}
-                />
-                
-                </Form.Field>
-                <br />
+              {this.state.documents.map((doc, index) => {
+                return (
+                  <Grid.Column key={doc[0]}>
+                    <Form.Field inline>
+                    <br />
+                    <Modal
+                      trigger={<Button style={{marginLeft: "25%"}}>Show Subgraph</Button>}
+                      header='Subgraph 1'
+                      content={<NeoVisComponent query={queries[index]}/>}
+                      actions={['Close']}
+                    />
+                    {/* {doc[0]} */}
+                    </Form.Field>
+                    <br />
 
-                <Form.Field>
-                  <label style={{ marginLeft: "24px"}}><b>Path A</b></label>
-                  <Input 
-                    name="pathA" 
-                    placeholder="Enter path"
-                    // onChange={this.handleInputChange}
-                    // value={this.state.negalias}
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-                <br />
+                    <Form.Field>
+                      <label style={{ marginLeft: "24px"}}><b>Path</b></label>
+                      <Input 
+                        name="pathA" 
+                        placeholder="Enter path"
+                        onChange={() => this.handleInputChange(doc[0])}
+                        style={{ marginLeft: "22px"}}
+                      />
+                    </Form.Field>
+                    <br />
 
-                <Form.Field inline>
-                  <label style={{marginLeft: "22px"}}><b>Rank</b></label>
-                  <Dropdown
-                    name = 'rank'
-                    placeholder='Select ranking'
-                    selection
-                    options={this.state.rankOptions}
-                    style={{ marginLeft: "21px"}}
-                  />
-                </Form.Field>
+                    <Form.Field inline>
+                      <label style={{marginLeft: "22px"}}><b>Rank</b></label>
+                      <Dropdown
+                        name = 'rank'
+                        placeholder='Select ranking'
+                        selection
+                        options={this.state.rankOptions}
+                        style={{ marginLeft: "21px"}}
+                        onChange={this.handleDropdownChange(doc[0])}
+                        value={doc[3]}
+                      />
+                    </Form.Field>
 
-                <br />
-                <Form.Field inline>
-                <label style={{marginTop: "10px"}}><b>Adjacency</b></label>
-                  <Dropdown
-                    name = 'adjacency'
-                    placeholder='Select adjacency'
-                    selection
-                    options={this.state.adjacencyOptions}
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-              </Grid.Column>
-              <Grid.Column>
-                <Form.Field inline>
-                {/* <label>Subgraph</label> */}
-                <br />
-                <Modal
-                  trigger={<Button style={{marginLeft: "25%"}}>Show Subgraph</Button>}
-                  header='Subgraph 2'
-                  content={<NeoVisComponent query={q3}/>}
-                  actions={['Close']}
-                />
-                </Form.Field>
-                <br />
-
-                <Form.Field>
-                  <label style={{ marginLeft: "24px"}}><b>Path B</b></label>
-                  <Input 
-                    name="pathB" 
-                    placeholder="Enter path"
-                    // onChange={this.handleInputChange}
-                    // value={this.state.negalias}
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-                <br />
-
-                <Form.Field inline>
-                  <label style={{marginLeft: "22px"}}><b>Rank</b></label>
-                  <Dropdown
-                    name = 'rank'
-                    placeholder='Select ranking'
-                    selection
-                    options={this.state.rankOptions}
-                    style={{ marginLeft: "21px"}}
-                  />
-                </Form.Field>
-
-                <br />
-                <Form.Field inline>
-                <label style={{marginTop: "10px"}}><b>Adjacency</b></label>
-                  <Dropdown
-                    name = 'adjacency'
-                    placeholder='Select adjacency'
-                    options={this.state.adjacencyOptions}
-                    selection
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-              </Grid.Column>
-
-              <Grid.Column>
-                <Form.Field inline>
-                {/* <label>Subgraph</label> */}
-                <br />
-                <Modal
-                  trigger={<Button style={{marginLeft: "25%"}}>Show Subgraph</Button>}
-                  header='Subgraph 3'
-                  content={<NeoVisComponent query={q4}/>}
-                  actions={['Close']}
-                />
-                </Form.Field>
-                <br />
-
-                <Form.Field>
-                  <label style={{ marginLeft: "24px"}}><b>Path C</b></label>
-                  <Input 
-                    name="pathC" 
-                    placeholder="Enter path"
-                    // onChange={this.handleInputChange}
-                    // value={this.state.negalias}
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-                <br />
-
-                <Form.Field inline>
-                  <label style={{marginLeft: "22px"}}><b>Rank</b></label>
-                  <Dropdown
-                    name = 'rank'
-                    placeholder='Select ranking'
-                    selection
-                    options={this.state.rankOptions}
-                    style={{ marginLeft: "21px"}}
-                  />
-                </Form.Field>
-
-                <br />
-                <Form.Field inline>
-                <label style={{marginTop: "10px"}}><b>Adjacency</b></label>
-                  <Dropdown
-                    name = 'adjacency'
-                    placeholder='Select adjacency'
-                    options={this.state.adjacencyOptions}
-                    selection
-                    style={{ marginLeft: "10px"}}
-                  />
-                </Form.Field>
-              </Grid.Column>
+                    <br />
+                    <Form.Field inline>
+                    <label style={{marginTop: "10px"}}><b>Adjacency</b></label>
+                      <Dropdown
+                        name = 'adjacency'
+                        placeholder='Select adjacency'
+                        selection
+                        options={this.state.adjacencyOptions}
+                        style={{ marginLeft: "10px"}}
+                        onChange={this.handleAdjacencyDropdownChange(doc[0])}
+                        value={doc[4]}
+                      />
+                    </Form.Field>
+                  </Grid.Column>
+                ) 
+              })}
+              
+              
             </Grid.Row>
           </Grid>
         </div>
       )
     }
 
+    handleUpdate = async() => {
+      console.log("Inside handleUpdate")
+      let response = await axios
+        .post('http://localhost:5000/update', this.state);
+      console.log("response", response);
+
+      if(response.data.message == 'updated') {
+        toast.success('Curations updated!', {
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "light",
+        });
+      }
+    }
+
     render() {
-      console.log("state in Home", this.state)
-      let query1 = `match (n:indication) - [r1] - (x:drug) - [r2] - (y:company) - [r3] - (z:indication) return n,r1,x,r2,y,r3,z limit 3`
-
-      let query2 = `MATCH (p) where p.name IN ['Endometriosis', 'Myovant Sciences Inc', 'Hormone dependent prostate cancer', 'prostate cancer'] or p.rdfs__label in ['Endometriosis', 'Myovant Sciences Inc', 'Hormone dependent prostate cancer', 'prostate cancer'] 
-      with collect(id(p)) as nodes 
-      CALL apoc.algo.cover(nodes) 
-      YIELD rel 
-      RETURN startNode(rel), rel, endNode(rel);`
-
-      let query3 = `MATCH (p) where p.name IN ['Endometriosis', "Ardana to develop Zentaris' macimorelin and Teverelix ", 'Prostate tumor', 'prostate cancer'] or p.rdfs__label in ['Endometriosis', "Ardana to develop Zentaris' macimorelin and Teverelix ", 'Prostate tumor', 'prostate cancer'] 
-      with collect(id(p)) as nodes 
-      CALL apoc.algo.cover(nodes) 
-      YIELD rel 
-      RETURN startNode(rel), rel, endNode(rel);`
-
-      let query4 = `MATCH (p) where p.name IN ['Endometriosis', 'relugolix', 'Prostate tumor', 'prostate cancer'] or p.rdfs__label in ['Endometriosis', 'relugolix', 'Prostate tumor', 'prostate cancer'] 
-      with collect(id(p)) as nodes 
-      CALL apoc.algo.cover(nodes) 
-      YIELD rel 
-      RETURN startNode(rel), rel, endNode(rel);`
+      console.log("state in Home", this.state);
+      
+      let fullgraph = this.state.fullgraph;
+      console.log("fulraph", fullgraph)
       return (
         <div style={{ marginLeft: "50px", alignItems: "center"  }}>
+          <ToastContainer />
           {this.state.loading && (
             <Segment style={{ marginTop: '40px', height: '400px', marginRight: "50px"}}>
               <Dimmer active inverted>
@@ -237,18 +207,23 @@ export default class Home extends Component {
           )}
           {!this.state.loading && (
             <div style={{ marginRight: "100px"}}>
+              
               <HeaderContent />
               <div style={{ marginTop: "30px"}}>
                 <h3>Subgraphs</h3>
               </div>
-              {this.renderGrid(query1, query2, query3, query4)}
+              {this.state.documents.length>0 && this.renderGrid()}
               <br/>
+              <Button primary onClick={this.handleUpdate}>Update</Button>
 
               <Divider style={{marginTop: "30px"}}/>
-              <div style={{ marginTop: "30px", marginBottom: "50px"}}>
-                <h3>Parent graph</h3>
-                <NeoVisComponent query={query1}/>
-              </div>
+              {this.state.fullgraph && (
+                <div style={{ marginTop: "30px", marginBottom: "50px"}}>
+                  <h3>Parent graph</h3>
+                  <NeoVisComponent query={fullgraph}/>
+                </div>
+              )}
+              
             </div>
           )}
         </div>
